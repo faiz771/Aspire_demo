@@ -1,3 +1,5 @@
+import 'package:aspire/helper/app_common.dart';
+import 'package:aspire/screen/auth/login.dart';
 import 'package:aspire/screen/dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -16,7 +18,8 @@ class SplashScreenState extends State<SplashScreen> {
 
   void init() async {
     await Future.delayed(const Duration(seconds: 2));
-    Get.offAll(DashBoardScreen());
+    Get.offAll(SignInScreen());
+    // Get.offAll(DashBoardScreen());
   }
 
   @override
@@ -24,8 +27,12 @@ class SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: Image.asset("assets/ic_car.png",
-            fit: BoxFit.contain, height: 150, width: 150),
+        child:  ClipRRect(
+                    borderRadius: radius(50),
+                    child: Image.asset("assets/logo.jpeg", width: 100, height: 100),
+                  ),
+        // child: Image.asset("assets/logo.jpeg",
+        //     fit: BoxFit.contain, height: 150, width: 150),
       ),
     );
   }
