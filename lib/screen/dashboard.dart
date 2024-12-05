@@ -1,7 +1,10 @@
 // ignore_for_file: must_be_immutable
 
 import 'dart:async';
+
+import 'package:dio/dio.dart' as dio;
 import 'package:aspire/helper/app_common.dart';
+import 'package:aspire/screen/dashboard/search_prediction_model.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +44,14 @@ class DashBoardScreenState extends State<DashBoardScreen> {
     init();
   }
 
+  List<PredictionModel> listAddress = [];
+  //  TextEditingController sourceLocation = TextEditingController();
+  TextEditingController destinationLocation = TextEditingController();
+
+  FocusNode sourceFocus = FocusNode();
+  FocusNode desFocus = FocusNode();
+  LatLng userLocation = LatLng(25.3703262,
+                        68.3534493);
   void init() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -55,10 +66,8 @@ class DashBoardScreenState extends State<DashBoardScreen> {
     Position position = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
-    LatLng userLocation = LatLng(position.latitude, position.longitude);
-
-    // print("UserLocation ${userLocation}");
-
+     userLocation = LatLng(position.latitude, position.longitude);
+     
     // Update markers with the user's location
     setState(() {
       markers.add(
@@ -111,7 +120,7 @@ class DashBoardScreenState extends State<DashBoardScreen> {
   Future<void> getNearbyDrivers(LatLng userLocation) async {
     // Mock data for nearby drivers (replace with actual API call)
     List<LatLng> driverLocations = [
-      LatLng(userLocation.latitude  + 0001, userLocation.longitude),
+      LatLng(userLocation.latitude + 0001, userLocation.longitude),
       LatLng(userLocation.latitude + 0.001, userLocation.longitude + 0.1),
       LatLng(userLocation.latitude - 0.01, userLocation.longitude - 0.01),
       LatLng(userLocation.latitude + 0.05, userLocation.longitude + 0.03),
@@ -170,62 +179,103 @@ class DashBoardScreenState extends State<DashBoardScreen> {
                   ),
                 ),
               ),
-
               if (isSearchVisible)
                 SizedBox(
                   height: 15,
                 ),
-
-              if (isSearchVisible)
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      labelText: 'Search Location Here',
-                      // suffixIcon: IconButton(
-                      // icon: Icon(Icons.search),
-                      // onPressed: () async {
-                      //   var result = await showSearch(
-                      //     context: context,
-                      //     delegate: PlacesAutocomplete(
-                      //       apiKey: "YOUR_GOOGLE_API_KEY", // Replace with your actual API key
-                      //       language: "en",
-                      //     ),
-                      //   );
-                      //   if (result != null) {
-                      //     setState(() {
-                      //       _searchController.text = result.description ?? '';
-                      //     });
-                      // You can update the camera position to the searched location here
-                      // }
-                      // },
-                    ),
-                    // ),
-                  ),
-                ),
-              // Google Map Display
               Container(
-                height: Get.height * 0.74,
-                child: GoogleMap(
-                  padding: EdgeInsets.only(top: 42),
-                  compassEnabled: true,
-                  mapToolbarEnabled: false,
-                  zoomControlsEnabled: false,
-                  myLocationEnabled: false,
-                  mapType: MapType.normal,
-                  markers: markers,
-                  polylines: _polyLines,
-                  initialCameraPosition: CameraPosition(
-                    target: LatLng(25.3703262,
-                        68.3534493), // Default to Karachi coordinates
-                    zoom: cameraZoom,
-                    tilt: cameraTilt,
-                    bearing: cameraBearing,
-                  ),
-                ),
-              ),
+                  height: Get.height * 0.8,
+                  child: Stack(
+                    children: [
+                      GoogleMap(
+                        padding: EdgeInsets.only(top: 42),
+                        compassEnabled: true,
+                        mapToolbarEnabled: false,
+                        zoomControlsEnabled: false,
+                        myLocationEnabled: false,
+                        mapType: MapType.normal,
+                        markers: markers,
+                        polylines: _polyLines,
+                        initialCameraPosition: CameraPosition(
+                          target: userLocation, // Default to Karachi coordinates
+                          zoom: cameraZoom,
+                          tilt: cameraTilt,
+                          bearing: cameraBearing,
+                        ),
+                      ),
 
+                      if (isSearchVisible)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              top: 4.0, left: 8, right: 8),
+                          child: TextFormField(
+                            controller: destinationLocation,
+                            focusNode: desFocus,
+
+                            autofocus: true,
+                            decoration: InputDecoration(
+                                hintText: "Search Location",
+                                filled: true,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                )),
+                            // decoration:
+                            //     searchInputDecoration(hint: language.destinationLocation),
+                            onTap: () {
+                              // isDrop = false;
+                              setState(() {});
+                            },
+                            onChanged: (val) {
+                              if (val.isNotEmpty) {
+                                // isDrop = true;
+                                if (val.length < 2) {
+                                  listAddress.clear();
+                                  setState(() {});
+                                } else {
+                                  searchAddressRequest(search: val)
+                                      .then((value) {
+                                    listAddress = value.predictions!;
+                                    setState(() {});
+                                  }).catchError((error) {
+                                    log(error);
+                                  });
+                                }
+                              } else {
+                                listAddress.clear();
+                                // isDrop = false;
+                                setState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      // Google Map Display
+                      if (listAddress.isNotEmpty) SizedBox(height: 16),
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 50,
+                        child: ListView.builder(
+                          controller: ScrollController(),
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: listAddress.length,
+                          itemBuilder: (context, index) {
+                            PredictionModel mData = listAddress[index];
+                            return ListTile(
+                              // tileColor: Colors.white,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.location_on_outlined,
+                                  color: Colors.blue),
+                              minLeadingWidth: 16,
+                              title: Text(mData.description ?? "",
+                                  style: primaryTextStyle()),
+                              onTap: () async {},
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  )),
               SizedBox(
                 height: 10,
               ),
@@ -233,9 +283,11 @@ class DashBoardScreenState extends State<DashBoardScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: ElevatedButton(
                   onPressed: () {
-                     setState(() {
-                    isSearchVisible = !isSearchVisible;  // Toggle the visibility of search field
-                  });
+                    listAddress.clear();
+                    setState(() {
+                      isSearchVisible =
+                          !isSearchVisible; // Toggle the visibility of search field
+                    });
                   },
                   child: const Text("Find Near By Buses"),
                   style: ElevatedButton.styleFrom(
@@ -255,3 +307,39 @@ class DashBoardScreenState extends State<DashBoardScreen> {
     );
   }
 }
+
+Future<GoogleMapSearchModel> searchAddressRequest({String? search}) async {
+  const String GOOGLE_MAP_API_KEY =
+      "AIzaSyCa7hc3Il46hg5nLQeGyLns5PBKGdaGYTA"; // Replace with your actual API key
+  const String BASE_URL =
+      "https://maps.googleapis.com/maps/api/place/autocomplete/json";
+
+  // Initialize Dio
+  dio.Dio d = dio.Dio();
+
+  try {
+    // Build the URL with query parameters
+    String country = "us"; // Replace with your country code logic
+    final response = await d.get(
+      BASE_URL,
+      queryParameters: {
+        "input": search,
+        "key": GOOGLE_MAP_API_KEY,
+        "components": "country:$country",
+      },
+    );
+    print("response ${response}");
+
+    // Check if the request was successful
+    if (response.statusCode == 200) {
+      // Parse the JSON response
+      return GoogleMapSearchModel.fromJson(response.data);
+    } else {
+      throw Exception("Failed to fetch data: ${response.statusCode}");
+    }
+  } catch (e) {
+    throw Exception("Dio error: ${e}");
+  }
+}
+
+enum HttpMethod { GET, POST, DELETE, PUT }

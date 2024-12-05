@@ -44,6 +44,10 @@ dependencies:
   image: ^4.3.0
   country_code_picker: ^3.1.0
   google_places_flutter: ^2.0.9
+  flutter_google_places_sdk: ^0.3.10
+  fluttertoast: ^8.2.8
+  permission_handler: ^11.3.1
+  dio: ^5.7.0
   
 
 dev_dependencies:
