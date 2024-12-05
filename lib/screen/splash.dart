@@ -24,7 +24,7 @@ class SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: Image.asset("assets/logo",
+        child: Image.asset("assets/ic_car.png",
             fit: BoxFit.contain, height: 150, width: 150),
       ),
     );
