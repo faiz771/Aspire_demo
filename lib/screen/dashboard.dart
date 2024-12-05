@@ -289,7 +289,7 @@ class DashBoardScreenState extends State<DashBoardScreen> {
                           !isSearchVisible; // Toggle the visibility of search field
                     });
                   },
-                  child: const Text("Find Near By Buses"),
+                  child: const Text("Find Near By Bus"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
