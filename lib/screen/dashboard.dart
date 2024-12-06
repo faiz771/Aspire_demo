@@ -50,8 +50,7 @@ class DashBoardScreenState extends State<DashBoardScreen> {
 
   FocusNode sourceFocus = FocusNode();
   FocusNode desFocus = FocusNode();
-  LatLng userLocation = LatLng(25.3703262,
-                        68.3534493);
+  LatLng userLocation = LatLng(25.3703262, 68.3534493);
   void init() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -66,8 +65,8 @@ class DashBoardScreenState extends State<DashBoardScreen> {
     Position position = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
-     userLocation = LatLng(position.latitude, position.longitude);
-     
+    userLocation = LatLng(position.latitude, position.longitude);
+
     // Update markers with the user's location
     setState(() {
       markers.add(
@@ -133,7 +132,10 @@ class DashBoardScreenState extends State<DashBoardScreen> {
       "assets/yellow_bus.png",
       90, // Adjust rotation angle as needed
     );
-    setState(() {
+    setState(() async {
+      await drawRoute(
+        LatLng(userLocation.latitude - 0.01, userLocation.longitude - 0.01),
+      );
       for (var driverLocation in driverLocations) {
         markers.add(
           Marker(
@@ -149,161 +151,242 @@ class DashBoardScreenState extends State<DashBoardScreen> {
     });
   }
 
+  String? duration;
+
+  Future<void> drawRoute(LatLng destination) async {
+    const String GOOGLE_MAP_API_KEY = "AIzaSyCa7hc3Il46hg5nLQeGyLns5PBKGdaGYTA";
+    const String DIRECTIONS_API_URL =
+        "https://maps.googleapis.com/maps/api/directions/json";
+
+    try {
+      // Fetch route data from the Directions API
+      dio.Dio d = dio.Dio();
+      final response = await d.get(
+        DIRECTIONS_API_URL,
+        queryParameters: {
+          "origin": "${userLocation.latitude},${userLocation.longitude}",
+          "destination": "${destination.latitude},${destination.longitude}",
+          "key": GOOGLE_MAP_API_KEY,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Parse and decode polyline
+        duration = response.data['routes'][0]['legs'][0]['duration']['text'];
+
+        var points = response.data['routes'][0]['overview_polyline']['points'];
+        List<LatLng> routeCoords =
+            PolylinePoints().decodePolyline(points).map((point) {
+          return LatLng(point.latitude, point.longitude);
+        }).toList();
+
+        // Add the polyline to the map
+        setState(() {
+          _polyLines.add(Polyline(
+            polylineId: PolylineId(
+                "route_${destination.latitude}_${destination.longitude}"),
+            points: routeCoords,
+            color: Colors.blue,
+            width: 5,
+          ));
+        });
+      } else {
+        throw Exception("Failed to load route data: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error fetching route: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              Container(
-                color: Colors.blue,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Aspire",
-                        style: TextStyle(
-                            fontSize: 30,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      ClipRRect(
-                        borderRadius: radius(50),
-                        child: Image.asset("assets/logo.jpeg",
-                            width: 40, height: 40),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (isSearchVisible)
-                SizedBox(
-                  height: 15,
-                ),
-              Container(
-                  height: Get.height * 0.8,
-                  child: Stack(
-                    children: [
-                      GoogleMap(
-                        padding: EdgeInsets.only(top: 42),
-                        compassEnabled: true,
-                        mapToolbarEnabled: false,
-                        zoomControlsEnabled: false,
-                        myLocationEnabled: false,
-                        mapType: MapType.normal,
-                        markers: markers,
-                        polylines: _polyLines,
-                        initialCameraPosition: CameraPosition(
-                          target: userLocation, // Default to Karachi coordinates
-                          zoom: cameraZoom,
-                          tilt: cameraTilt,
-                          bearing: cameraBearing,
-                        ),
-                      ),
-
-                      if (isSearchVisible)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                              top: 4.0, left: 8, right: 8),
-                          child: TextFormField(
-                            controller: destinationLocation,
-                            focusNode: desFocus,
-
-                            autofocus: true,
-                            decoration: InputDecoration(
-                                hintText: "Search Location",
-                                filled: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                )),
-                            // decoration:
-                            //     searchInputDecoration(hint: language.destinationLocation),
-                            onTap: () {
-                              // isDrop = false;
-                              setState(() {});
-                            },
-                            onChanged: (val) {
-                              if (val.isNotEmpty) {
-                                // isDrop = true;
-                                if (val.length < 2) {
-                                  listAddress.clear();
-                                  setState(() {});
-                                } else {
-                                  searchAddressRequest(search: val)
-                                      .then((value) {
-                                    listAddress = value.predictions!;
-                                    setState(() {});
-                                  }).catchError((error) {
-                                    log(error);
-                                  });
-                                }
-                              } else {
-                                listAddress.clear();
-                                // isDrop = false;
-                                setState(() {});
-                              }
-                            },
-                          ),
-                        ),
-                      // Google Map Display
-                      if (listAddress.isNotEmpty) SizedBox(height: 16),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 50,
-                        child: ListView.builder(
-                          controller: ScrollController(),
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          itemCount: listAddress.length,
-                          itemBuilder: (context, index) {
-                            PredictionModel mData = listAddress[index];
-                            return ListTile(
-                              // tileColor: Colors.white,
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.location_on_outlined,
-                                  color: Colors.blue),
-                              minLeadingWidth: 16,
-                              title: Text(mData.description ?? "",
-                                  style: primaryTextStyle()),
-                              onTap: () async {},
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  )),
-              SizedBox(
-                height: 10,
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    listAddress.clear();
-                    setState(() {
-                      isSearchVisible =
-                          !isSearchVisible; // Toggle the visibility of search field
-                    });
-                  },
-                  child: const Text("Find Near By Bus"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      appBar: AppBar(
+        backgroundColor: Colors.blue,
+        automaticallyImplyLeading: false,
+        title: Text(
+          "Aspire",
+          style: TextStyle(
+              fontSize: 30, color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          ClipRRect(
+            borderRadius: radius(50),
+            child: Image.asset("assets/logo.jpeg", width: 40, height: 40),
           ),
+        ],
+      ),
+
+      body: GoogleMap(
+        padding: EdgeInsets.only(top: 42),
+        compassEnabled: true,
+        mapToolbarEnabled: false,
+        zoomControlsEnabled: false,
+        myLocationEnabled: false,
+        mapType: MapType.normal,
+        markers: markers,
+        polylines: _polyLines,
+        initialCameraPosition: CameraPosition(
+          target: userLocation, // Default to Karachi coordinates
+          zoom: cameraZoom,
+          tilt: cameraTilt,
+          bearing: cameraBearing,
         ),
       ),
+
+      // body: SafeArea(
+      //   child: SingleChildScrollView(
+      //     child: Column(
+      //       children: [
+      //         Container(
+      //           color: Colors.blue,
+      //           child: Padding(
+      //             padding: const EdgeInsets.all(8.0),
+      //             child: Row(
+      //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      //               children: [
+      //                 Text(
+      //                   "Aspire",
+      //                   style: TextStyle(
+      //                       fontSize: 30,
+      //                       color: Colors.white,
+      //                       fontWeight: FontWeight.bold),
+      //                 ),
+      //                 ClipRRect(
+      //                   borderRadius: radius(50),
+      //                   child: Image.asset("assets/logo.jpeg",
+      //                       width: 40, height: 40),
+      //                 ),
+      //               ],
+      //             ),
+      //           ),
+      //         ),
+      //         if (isSearchVisible)
+      //           SizedBox(
+      //             height: 15,
+      //           ),
+      //         Container(
+      //             height: Get.height * 0.8,
+      //             child: Stack(
+      //               children: [
+      //                 GoogleMap(
+      //                   padding: EdgeInsets.only(top: 42),
+      //                   compassEnabled: true,
+      //                   mapToolbarEnabled: false,
+      //                   zoomControlsEnabled: false,
+      //                   myLocationEnabled: false,
+      //                   mapType: MapType.normal,
+      //                   markers: markers,
+      //                   polylines: _polyLines,
+      //                   initialCameraPosition: CameraPosition(
+      //                     target:
+      //                         userLocation, // Default to Karachi coordinates
+      //                     zoom: cameraZoom,
+      //                     tilt: cameraTilt,
+      //                     bearing: cameraBearing,
+      //                   ),
+      //                 ),
+
+      //                 if (isSearchVisible)
+      //                   Padding(
+      //                     padding: const EdgeInsets.only(
+      //                         top: 4.0, left: 8, right: 8),
+      //                     child: TextFormField(
+      //                       controller: destinationLocation,
+      //                       focusNode: desFocus,
+
+      //                       autofocus: true,
+      //                       decoration: InputDecoration(
+      //                           hintText: "Search Location",
+      //                           filled: true,
+      //                           border: OutlineInputBorder(
+      //                             borderRadius: BorderRadius.circular(12),
+      //                           )),
+      //                       // decoration:
+      //                       //     searchInputDecoration(hint: language.destinationLocation),
+      //                       onTap: () {
+      //                         // isDrop = false;
+      //                         setState(() {});
+      //                       },
+      //                       onChanged: (val) {
+      //                         if (val.isNotEmpty) {
+      //                           // isDrop = true;
+      //                           if (val.length < 2) {
+      //                             listAddress.clear();
+      //                             setState(() {});
+      //                           } else {
+      //                             searchAddressRequest(search: val)
+      //                                 .then((value) {
+      //                               listAddress = value.predictions!;
+      //                               setState(() {});
+      //                             }).catchError((error) {
+      //                               log(error);
+      //                             });
+      //                           }
+      //                         } else {
+      //                           listAddress.clear();
+      //                           // isDrop = false;
+      //                           setState(() {});
+      //                         }
+      //                       },
+      //                     ),
+      //                   ),
+      //                 // Google Map Display
+      //                 if (listAddress.isNotEmpty) SizedBox(height: 16),
+      //                 Positioned(
+      //                   left: 0,
+      //                   right: 0,
+      //                   top: 50,
+      //                   child: ListView.builder(
+      //                     controller: ScrollController(),
+      //                     padding: EdgeInsets.zero,
+      //                     shrinkWrap: true,
+      //                     itemCount: listAddress.length,
+      //                     itemBuilder: (context, index) {
+      //                       PredictionModel mData = listAddress[index];
+      //                       return ListTile(
+      //                         // tileColor: Colors.white,
+      //                         contentPadding: EdgeInsets.zero,
+      //                         leading: Icon(Icons.location_on_outlined,
+      //                             color: Colors.blue),
+      //                         minLeadingWidth: 16,
+      //                         title: Text(mData.description ?? "",
+      //                             style: primaryTextStyle()),
+      //                         onTap: () async {},
+      //                       );
+      //                     },
+      //                   ),
+      //                 ),
+      //               ],
+      //             )),
+      //         // SizedBox(
+      //         //   height: 10,
+      //         // ),
+      //         // Padding(
+      //         //   padding: const EdgeInsets.all(8.0),
+      //         //   child: ElevatedButton(
+      //         //     onPressed: () {
+      //         //       listAddress.clear();
+      //         //       setState(() {
+      //         //         isSearchVisible =
+      //         //             !isSearchVisible; // Toggle the visibility of search field
+      //         //       });
+      //         //     },
+      //         //     child: const Text("Find Near By Bus"),
+      //         //     style: ElevatedButton.styleFrom(
+      //         //       backgroundColor: Colors.blue,
+      //         //       foregroundColor: Colors.white,
+      //         //       minimumSize: const Size(double.infinity, 50),
+      //         //       shape: RoundedRectangleBorder(
+      //         //         borderRadius: BorderRadius.circular(8),
+      //         //       ),
+      //         //     ),
+      //         //   ),
+      //         // ),
+      //       ],
+      //     ),
+      //   ),
+      // ),
     );
   }
 }
